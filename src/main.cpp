@@ -5,88 +5,46 @@
 #include <limits>
 #include <random>
 #include <string>
-#include <vector>
-#include <utility>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
-enum class Color
+enum class LetterColor
 {
-    Gray = 0,   // Incorrect letter
-    Yellow = 1, // Correct letter in wrong position
-    Green = 2,  // Correct letter in the correct position
+    Correct,   // Letter is correct and in the correct position
+    Misplaced, // Letter is in the word but in the wrong position
+    Incorrect  // Letter is not in the word
 };
 
-struct WordleGuess
+// Struct to represent each letter and its color
+struct LetterResult
 {
-    std::string word;
-    std::vector<Color> colors;
+    char letter;       // The letter itself
+    LetterColor color; // The color/status of the letter
 
-    // Constructor to initialize the struct
-    WordleGuess(const std::string &w, const std::vector<Color> &c)
-        : word(w), colors(c)
-    {
-    }
-    // Method to get gray letters
-    std::vector<char> getGrayLetters() const
-    {
-        std::vector<char> grayLetters;
-        for (size_t i = 0; i < colors.size(); ++i)
-        {
-            if (colors[i] == Color::Gray)
-            {
-                grayLetters.push_back(word[i]);
-            }
-        }
-        return grayLetters;
-    }
-
-    // Method to get yellow letters with their indices
-    std::vector<std::pair<char, size_t>> getYellowLetters() const
-    {
-        std::vector<std::pair<char, size_t>> yellowLetters;
-        for (size_t i = 0; i < colors.size(); ++i)
-        {
-            if (colors[i] == Color::Yellow)
-            {
-                yellowLetters.emplace_back(word[i], i);
-            }
-        }
-        return yellowLetters;
-    }
-
-    // Method to get green letters with their indices
-    std::vector<std::pair<char, size_t>> getGreenLetters() const
-    {
-        std::vector<std::pair<char, size_t>> greenLetters;
-        for (size_t i = 0; i < colors.size(); ++i)
-        {
-            if (colors[i] == Color::Green)
-            {
-                greenLetters.emplace_back(word[i], i);
-            }
-        }
-        return greenLetters;
-    }
+    LetterResult(char l, LetterColor c) : letter(l), color(c) {}
 };
 
-int randomIntInRange(const unsigned int &seed, const int &min, const int &max)
+// Struct to represent the entire guess
+struct GuessResult
 {
-    std::mt19937 eng(seed);
-    std::uniform_int_distribution<> distr(min, max);
-    return distr(eng);
-}
+    std::string guess;                       // The guessed word
+    std::vector<LetterResult> letterResults; // Results for each letter
+
+    // Constructor to initialize the guess and letter results
+    GuessResult(const std::string &g, const std::vector<LetterResult> &lr)
+        : guess(g), letterResults(lr)
+    {
+    }
+
+    // Method to return the guess string
+    std::string getGuess() const { return guess; }
+};
 
 bool checkWordInWordlist(const std::string &word,
                          const std::vector<std::string> &wordList)
 {
-    for (const std::string &string : wordList)
-    {
-        if (word == string)
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::find(wordList.begin(), wordList.end(), word) != wordList.end();
 }
 
 void clearInputBuffer()
@@ -103,11 +61,11 @@ std::string toLowercase(const std::string &input)
     return lowercased; // Return the lowercase string
 }
 
-std::vector<Color> readGuessResult(const std::string &word)
+std::vector<LetterResult> readGuessResult(const std::string &word)
 {
-    std::vector<Color> results;
-
+    std::vector<LetterResult> results;
     int result = 0;
+
     std::cout << "0 = gray, 1 = yellow, 2 = green" << std::endl;
     for (const char &c : word)
     {
@@ -139,17 +97,20 @@ std::vector<Color> readGuessResult(const std::string &word)
         switch (result)
         {
         case 0:
-            results.push_back(Color::Gray);
+            results.push_back(LetterResult(c, LetterColor::Incorrect));
+            break;
         case 1:
-            results.push_back(Color::Yellow);
+            results.push_back(LetterResult(c, LetterColor::Misplaced));
+            break;
         case 2:
-            results.push_back(Color::Green);
+            results.push_back(LetterResult(c, LetterColor::Correct));
+            break;
         }
     }
     return results;
 }
 
-WordleGuess readInWord(std::vector<WordleGuess> &guesses)
+GuessResult readInWord(std::vector<GuessResult> &guesses)
 {
     std::string word;
 
@@ -165,8 +126,8 @@ WordleGuess readInWord(std::vector<WordleGuess> &guesses)
             bool pass = checkWordInWordlist(word, wordle::wordList);
             if (pass)
             {
-                std::vector<Color> colors = readGuessResult(word);
-                WordleGuess guess(word, colors);
+                std::vector<LetterResult> colors = readGuessResult(word);
+                GuessResult guess(word, colors);
                 guesses.push_back(guess);
                 return guess;
             }
@@ -180,251 +141,95 @@ WordleGuess readInWord(std::vector<WordleGuess> &guesses)
         {
             std::cout << "Invalid input. Please enter a 5 letter word."
                       << std::endl;
-
             clearInputBuffer();
         }
     }
 }
 
-
-// Oops we broke something in the prune function, fix later
-void filterWords(std::vector<std::string>& wordList, const WordleGuess &guess)
+void filterWords(std::vector<std::string> &wordList, const GuessResult &guess)
 {
+    std::vector<std::string> candidates;
     std::cout << "Initial word list size: " << wordList.size() << std::endl;
 
     // Get gray letters
-    std::vector<char> grayLetters = guess.getGrayLetters();
+    std::vector<char> grayLetters;
+    for (const auto &letterResult : guess.letterResults)
+    {
+        if (letterResult.color == LetterColor::Incorrect)
+        {
+            grayLetters.push_back(letterResult.letter);
+        }
+    }
 
-    // Get yellow letters with indices
-    std::vector<std::pair<char, size_t>> yellowLetters = guess.getYellowLetters();
+    for (const std::string &word : wordList)
+    {
+        bool valid = true;
 
-    // Get green letters with indices
-    std::vector<std::pair<char, size_t>> greenLetters = guess.getGreenLetters();
-    
-    // Filter out words with gray letters
-    wordList.erase(
-        std::remove_if(
-            wordList.begin(), wordList.end(),
-            [&grayLetters](const std::string &word)
+        // Check for gray letters
+        for (const char &grayLetter : grayLetters)
+        {
+            if (word.find(grayLetter) != std::string::npos)
             {
-                // Check if any gray letter is in the word
-                for (char gray : grayLetters)
-                {
-                    if (word.find(gray) != std::string::npos)
-                    {
-                        return true; // Found a gray letter in the word
-                    }
-                }
-                return false; // No gray letters found in the word
-            }),
-        wordList.end());
+                valid = false;
+                break;
+            }
+        }
 
-    // Filter out words that have yellow letters at the specified indices
-    wordList.erase(
-        std::remove_if(
-            wordList.begin(), wordList.end(),
-            [&yellowLetters](const std::string &word)
+        // Check for misplaced and correct letters
+        for (size_t i = 0; i < guess.letterResults.size(); ++i)
+        {
+            const LetterResult &letterResult = guess.letterResults[i];
+            if (letterResult.color == LetterColor::Correct)
             {
-                // Check each yellow letter and its index
-                for (const auto &pair : yellowLetters)
+                if (word[i] != letterResult.letter)
                 {
-                    char yellowLetter = pair.first;
-                    size_t index = pair.second;
-
-                    // Check if the index is valid for the current word
-                    if (index < word.size() && word[index] == yellowLetter)
-                    {
-                        return true; // Found a yellow letter at the specified index
-                    }
-                    // Check if the yellow letter is not present in the word at all
-                    if (word.find(yellowLetter) == std::string::npos)
-                    {
-                        return true; // Yellow letter must be present in the word
-                    }
+                    valid = false;
+                    break;
                 }
-                return false; // No yellow letters found at specified indices
-            }),
-        wordList.end());
-
-    // Filter out words that do not have green letters at the specified indices
-    wordList.erase(
-        std::remove_if(
-            wordList.begin(), wordList.end(),
-            [&greenLetters](const std::string &word)
+            }
+            else if (letterResult.color == LetterColor::Misplaced)
             {
-                // Check if the word does not have the green letter at the specified index
-                for (const auto &pair : greenLetters)
+                if (word[i] == letterResult.letter ||
+                    word.find(letterResult.letter) == std::string::npos)
                 {
-                    char greenLetter = pair.first;
-                    size_t index = pair.second;
-
-                    // If the index is valid and the character does not match the green letter, return true to remove
-                    if (index < word.size() && word[index] != greenLetter)
-                    {
-                        return true; // This word does not have the green letter at the specified index
-                    }
+                    valid = false;
+                    break;
                 }
-                return false; // All checks passed, keep the word
-            }),
-        wordList.end());
+            }
+        }
 
-    std::cout << "Filtered word list size: " << wordList.size() << std::endl;
-    if (!wordList.empty()) {
-        std::cout << "First candidate: " << wordList[0] << std::endl;
-    } else {
+        if (valid)
+        {
+            candidates.push_back(word);
+        }
+    }
+
+    std::cout << "Filtered word list size: " << candidates.size() << std::endl;
+    if (!candidates.empty())
+    {
+        std::cout << "First candidate: " << candidates[0]
+                  << std::endl;
+    }
+    else
+    {
         std::cout << "No candidates found." << std::endl;
     }
+    wordList = candidates;
 }
-
-// Simulate every possible answer given every possible guess to determine outcomes:
-// This is extremely slow, and a terrible method. Execution takes quite literally forever,
-// which could be mitigated with parralel_for loops, but we can do better.
-void simulateOutcomes(const std::vector<std::string>& wordList) {
-    std::vector<std::vector<std::pair<char, int>>> results;
-
-    for (const std::string& word : wordList) {
-        std::vector<std::pair<char, int>> result;
-
-        for (const std::string& answer : wordList) {
-            std::vector<int> answerCount(26, 0); // Count of letters in the answer
-            std::vector<int> feedback(word.size(), 0); // Feedback array
-
-            // First pass: count letters in the answer and mark greens
-            for (size_t i = 0; i < answer.size(); ++i) {
-                answerCount[answer[i] - 'a']++; // Count letters
-                if (word[i] == answer[i]) {
-                    feedback[i] = 2; // Green
-                    answerCount[word[i] - 'a']--; // Decrease count for green letters
-                }
-            }
-
-            // Second pass: determine yellows and grays
-            for (size_t i = 0; i < word.size(); ++i) {
-                if (feedback[i] == 0) { // Only check if not already green
-                    if (answerCount[word[i] - 'a'] > 0) {
-                        feedback[i] = 1; // Yellow
-                        answerCount[word[i] - 'a']--; // Decrease count for yellow letters
-                    } else {
-                        feedback[i] = 0; // Gray
-                    }
-                }
-            }
-
-            // Build the result vector based on feedback
-            for (size_t i = 0; i < word.size(); ++i) {
-                result.push_back(std::make_pair(word[i], feedback[i]));
-            }
-        }
-        results.push_back(result);
-    }
-
-    for (const auto& res : results) {
-        for (const auto& pair : res) {
-            std::cout << "(" << pair.first << ", " << pair.second << ") ";
-        }
-        std::cout << std::endl;
-    }
-}
-
-// TODO: update return type to a better struct or similar
-// Post mortem: this has the same problem as the previous result: efficiency
-std::string calculateResult(const std::string& guess, const std::string& target)
-{
-    std::string feedback(guess.length(), 'N'); // initialize feedback with N (gray)
-    std::vector<bool> targetUsed(target.length(), false);
-
-    // Green
-    for (size_t i = 0; i < guess.length(); ++i)
-    {
-	if (guess[i] == target[i])
-	{
-	    feedback[i] = 'G';
-	    targetUsed[i] = true;
-	}
-    }
-
-    for (size_t i = 0; i < guess.length(); ++i)
-    {
-	if (feedback[i] == 'N')
-	{
-	    for(size_t j = 0; j < target.length(); ++j)
-	    {
-		if (guess[i] == target[j] && !targetUsed[j])
-		{
-		    feedback[i] = 'Y';
-		    targetUsed[j] = true;
-		    break;
-		}
-	    }
-	}
-    }
-    return feedback;
-}
-
-double calculateEntropy(const std::string& guess, const std::vector<std::string>& wordList)
-{
-    std::unordered_map<std::string, std::vector<std::string>> outcomes;
-
-    for (const std::string& word : wordList)
-    {
-	std::string result = calculateResult(word, guess);
-	outcomes[result].push_back(word);
-    }
-
-    double entropy = 0.0;
-    double totalWords = wordList.size();
-
-    for (const auto& outcome : outcomes)
-    {
-	double p = outcome.second.size() / totalWords;
-	if (p > 0)
-	{
-	    entropy -= p * std::log2(p);
-	}
-    }
-    return entropy;
-}
-
-
-// Outcomes given as 3^5 = 243
-// BRIEF RUNDOWN OF ENTROPY
-// The probability (p) of finding a word with a certain property can be calculated by dividing the toal number of words containing A (represented as Ma) by the number of all words (M).
-// So p = Ma / M.
-// At the same time, the information (I), meaning "The word contains an A," reduces the sapce of all possibilties (M) by the factor of (1/2)^I.
-// It can be presented as Ma = (1/2)^i * M.
-//
-// VERDICT:
-//
-// p = (1/2)^I * M / M
-// I = -log2p
-
 
 int main(int argc, char *argv[])
 {
-    std::vector<WordleGuess> guesses;
-
-    /* const std::string answer =
-        wordle::wordList[randomIntInRange(std::stoi(argv[1]), 0,
-    wordle::wordCount)]; std::cout << answer << std::endl; */
-
-    /* for (const auto& word : wordle::wordList)
-    {
-	double entropy = calculateEntropy(word, wordle::wordList);
-	if (entropy > maxEntropy) {
-	    maxEntropy = entropy;
-	    bestGuess = word;
-	    std::cout << bestGuess << std::endl;
-	}
-	++i;
-    } */
-
+    std::vector<GuessResult> guesses;
 
     std::vector<std::string> wordList = wordle::wordList;
-    for (int i = 0; i < 5; ++i)
+    std::cout << "First initial guess: " << wordList[0] << std::endl;
+    size_t wordCount = wordList.size();
+    while (wordCount != 1)
     {
-        WordleGuess word = readInWord(guesses);
-        filterWords(wordList, word);
-	// simulateOutcomes(wordList);
+        GuessResult guess = readInWord(guesses);
+        filterWords(wordList, guess);
     }
+    std::cout << "The answer is " << wordList[0] << std::endl;
+
     return 0;
 }
