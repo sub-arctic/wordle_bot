@@ -186,19 +186,22 @@ WordleGuess readInWord(std::vector<WordleGuess> &guesses)
     }
 }
 
-void filterWords(std::vector<std::string> wordList, const WordleGuess &guess)
+
+// Oops we broke something in the prune function, fix later
+void filterWords(std::vector<std::string>& wordList, const WordleGuess &guess)
 {
-    std::cout << wordList.size() << std::endl;
+    std::cout << "Initial word list size: " << wordList.size() << std::endl;
+
     // Get gray letters
     std::vector<char> grayLetters = guess.getGrayLetters();
 
     // Get yellow letters with indices
-    std::vector<std::pair<char, size_t>> yellowLetters =
-        guess.getYellowLetters();
+    std::vector<std::pair<char, size_t>> yellowLetters = guess.getYellowLetters();
 
     // Get green letters with indices
     std::vector<std::pair<char, size_t>> greenLetters = guess.getGreenLetters();
-
+    
+    // Filter out words with gray letters
     wordList.erase(
         std::remove_if(
             wordList.begin(), wordList.end(),
@@ -216,6 +219,7 @@ void filterWords(std::vector<std::string> wordList, const WordleGuess &guess)
             }),
         wordList.end());
 
+    // Filter out words that have yellow letters at the specified indices
     wordList.erase(
         std::remove_if(
             wordList.begin(), wordList.end(),
@@ -230,41 +234,48 @@ void filterWords(std::vector<std::string> wordList, const WordleGuess &guess)
                     // Check if the index is valid for the current word
                     if (index < word.size() && word[index] == yellowLetter)
                     {
-                        return true; // Found a yellow letter at the specified
-                                     // index
+                        return true; // Found a yellow letter at the specified index
+                    }
+                    // Check if the yellow letter is not present in the word at all
+                    if (word.find(yellowLetter) == std::string::npos)
+                    {
+                        return true; // Yellow letter must be present in the word
                     }
                 }
                 return false; // No yellow letters found at specified indices
             }),
         wordList.end());
 
+    // Filter out words that do not have green letters at the specified indices
     wordList.erase(
         std::remove_if(
             wordList.begin(), wordList.end(),
             [&greenLetters](const std::string &word)
             {
-                // Check if the word does not have the green letter at the
-                // specified index
+                // Check if the word does not have the green letter at the specified index
                 for (const auto &pair : greenLetters)
                 {
                     char greenLetter = pair.first;
                     size_t index = pair.second;
 
-                    // If the index is valid and the character does not match
-                    // the green letter, return true to remove
+                    // If the index is valid and the character does not match the green letter, return true to remove
                     if (index < word.size() && word[index] != greenLetter)
                     {
-                        return true; // This word does not have the green letter
-                                     // at the specified index
+                        return true; // This word does not have the green letter at the specified index
                     }
                 }
                 return false; // All checks passed, keep the word
             }),
         wordList.end());
 
-    std::cout << wordList.size() << std::endl;
-    std::cout << wordList[0] << std::endl;
+    std::cout << "Filtered word list size: " << wordList.size() << std::endl;
+    if (!wordList.empty()) {
+        std::cout << "First candidate: " << wordList[0] << std::endl;
+    } else {
+        std::cout << "No candidates found." << std::endl;
+    }
 }
+
 // Simulate every possible answer given every possible guess to determine outcomes:
 // This is extremely slow, and a terrible method. Execution takes quite literally forever,
 // which could be mitigated with parralel_for loops, but we can do better.
@@ -316,6 +327,7 @@ void simulateOutcomes(const std::vector<std::string>& wordList) {
 }
 
 // TODO: update return type to a better struct or similar
+// Post mortem: this has the same problem as the previous result: efficiency
 std::string calculateResult(const std::string& guess, const std::string& target)
 {
     std::string feedback(guess.length(), 'N'); // initialize feedback with N (gray)
@@ -358,7 +370,19 @@ double calculateEntropy(const std::string& guess, const std::vector<std::string>
 	std::string result = calculateResult(word, guess);
 	outcomes[result].push_back(word);
     }
-    return 0.0;
+
+    double entropy = 0.0;
+    double totalWords = wordList.size();
+
+    for (const auto& outcome : outcomes)
+    {
+	double p = outcome.second.size() / totalWords;
+	if (p > 0)
+	{
+	    entropy -= p * std::log2(p);
+	}
+    }
+    return entropy;
 }
 
 
@@ -383,14 +407,24 @@ int main(int argc, char *argv[])
         wordle::wordList[randomIntInRange(std::stoi(argv[1]), 0,
     wordle::wordCount)]; std::cout << answer << std::endl; */
 
-    std::string feedback = calculateResult("crane", "stare");
-    std::cout << feedback << std::endl;
-    /* for (int i = 0; i < 5; ++i)
+    /* for (const auto& word : wordle::wordList)
+    {
+	double entropy = calculateEntropy(word, wordle::wordList);
+	if (entropy > maxEntropy) {
+	    maxEntropy = entropy;
+	    bestGuess = word;
+	    std::cout << bestGuess << std::endl;
+	}
+	++i;
+    } */
+
+
+    std::vector<std::string> wordList = wordle::wordList;
+    for (int i = 0; i < 5; ++i)
     {
         WordleGuess word = readInWord(guesses);
-	std::vector<std::string> wordList = wordle::wordList;
         filterWords(wordList, word);
 	// simulateOutcomes(wordList);
-    } */
+    }
     return 0;
 }
