@@ -6,6 +6,8 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <utility>
+#include <unordered_map>
 
 enum class Color
 {
@@ -263,6 +265,115 @@ void filterWords(std::vector<std::string> wordList, const WordleGuess &guess)
     std::cout << wordList.size() << std::endl;
     std::cout << wordList[0] << std::endl;
 }
+// Simulate every possible answer given every possible guess to determine outcomes:
+// This is extremely slow, and a terrible method. Execution takes quite literally forever,
+// which could be mitigated with parralel_for loops, but we can do better.
+void simulateOutcomes(const std::vector<std::string>& wordList) {
+    std::vector<std::vector<std::pair<char, int>>> results;
+
+    for (const std::string& word : wordList) {
+        std::vector<std::pair<char, int>> result;
+
+        for (const std::string& answer : wordList) {
+            std::vector<int> answerCount(26, 0); // Count of letters in the answer
+            std::vector<int> feedback(word.size(), 0); // Feedback array
+
+            // First pass: count letters in the answer and mark greens
+            for (size_t i = 0; i < answer.size(); ++i) {
+                answerCount[answer[i] - 'a']++; // Count letters
+                if (word[i] == answer[i]) {
+                    feedback[i] = 2; // Green
+                    answerCount[word[i] - 'a']--; // Decrease count for green letters
+                }
+            }
+
+            // Second pass: determine yellows and grays
+            for (size_t i = 0; i < word.size(); ++i) {
+                if (feedback[i] == 0) { // Only check if not already green
+                    if (answerCount[word[i] - 'a'] > 0) {
+                        feedback[i] = 1; // Yellow
+                        answerCount[word[i] - 'a']--; // Decrease count for yellow letters
+                    } else {
+                        feedback[i] = 0; // Gray
+                    }
+                }
+            }
+
+            // Build the result vector based on feedback
+            for (size_t i = 0; i < word.size(); ++i) {
+                result.push_back(std::make_pair(word[i], feedback[i]));
+            }
+        }
+        results.push_back(result);
+    }
+
+    for (const auto& res : results) {
+        for (const auto& pair : res) {
+            std::cout << "(" << pair.first << ", " << pair.second << ") ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+// TODO: update return type to a better struct or similar
+std::string calculateResult(const std::string& guess, const std::string& target)
+{
+    std::string feedback(guess.length(), 'N'); // initialize feedback with N (gray)
+    std::vector<bool> targetUsed(target.length(), false);
+
+    // Green
+    for (size_t i = 0; i < guess.length(); ++i)
+    {
+	if (guess[i] == target[i])
+	{
+	    feedback[i] = 'G';
+	    targetUsed[i] = true;
+	}
+    }
+
+    for (size_t i = 0; i < guess.length(); ++i)
+    {
+	if (feedback[i] == 'N')
+	{
+	    for(size_t j = 0; j < target.length(); ++j)
+	    {
+		if (guess[i] == target[j] && !targetUsed[j])
+		{
+		    feedback[i] = 'Y';
+		    targetUsed[j] = true;
+		    break;
+		}
+	    }
+	}
+    }
+    return feedback;
+}
+
+double calculateEntropy(const std::string& guess, const std::vector<std::string>& wordList)
+{
+    std::unordered_map<std::string, std::vector<std::string>> outcomes;
+
+    for (const std::string& word : wordList)
+    {
+	std::string result = calculateResult(word, guess);
+	outcomes[result].push_back(word);
+    }
+    return 0.0;
+}
+
+
+// Outcomes given as 3^5 = 243
+// BRIEF RUNDOWN OF ENTROPY
+// The probability (p) of finding a word with a certain property can be calculated by dividing the toal number of words containing A (represented as Ma) by the number of all words (M).
+// So p = Ma / M.
+// At the same time, the information (I), meaning "The word contains an A," reduces the sapce of all possibilties (M) by the factor of (1/2)^I.
+// It can be presented as Ma = (1/2)^i * M.
+//
+// VERDICT:
+//
+// p = (1/2)^I * M / M
+// I = -log2p
+
 
 int main(int argc, char *argv[])
 {
@@ -272,10 +383,14 @@ int main(int argc, char *argv[])
         wordle::wordList[randomIntInRange(std::stoi(argv[1]), 0,
     wordle::wordCount)]; std::cout << answer << std::endl; */
 
-    for (int i = 0; i < 5; ++i)
+    std::string feedback = calculateResult("crane", "stare");
+    std::cout << feedback << std::endl;
+    /* for (int i = 0; i < 5; ++i)
     {
         WordleGuess word = readInWord(guesses);
-        filterWords(wordle::wordList, word);
-    }
+	std::vector<std::string> wordList = wordle::wordList;
+        filterWords(wordList, word);
+	// simulateOutcomes(wordList);
+    } */
     return 0;
 }
