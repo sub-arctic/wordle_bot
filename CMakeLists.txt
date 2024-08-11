@@ -1,14 +1,18 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(wordle)
+project(wordle VERSION 1.0 LANGUAGES CXX)
 
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Source files
-file(GLOB SOURCES
+add_executable(wordle src/main.cpp)
+
+target_include_directories(wordle PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+file(GLOB_RECURSE SOURCES
     src/*.cpp
 )
 
-add_executable(wordle ${SOURCES})
+target_sources(wordle PRIVATE ${SOURCES})
+
