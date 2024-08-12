@@ -1,9 +1,10 @@
-#include "wordlist.h"
 #include "feedback.h"
-#include <future>
+#include "wordlist.h"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstring>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -47,33 +48,31 @@ struct Feedback
     char data[6];
     int count;
 
-    Feedback(const char* initialData)
+    Feedback(const char *initialData)
     {
-	std::strncpy(data, initialData, sizeof(data) - 1);
-	data[sizeof(data) - 1] = '\0'; // ensure null termination
-	count = 0;
+        std::strncpy(data, initialData, sizeof(data) - 1);
+        data[sizeof(data) - 1] = '\0'; // ensure null termination
+        count = 0;
     }
 
-    void incrementCount()
-    {
-	count++;
-    }
-    bool matches(const char* str) const
+    void incrementCount() { count++; }
+    bool matches(const char *str) const
     {
         return strncmp(data, str, sizeof(data)) == 0;
     }
-    std::pair<const char*, int> getFeedback() const
+    std::pair<const char *, int> getFeedback() const
     {
         return std::make_pair(data, count);
     }
 };
 
-void addOrIncrementFeedback(std::vector<Feedback>& feedbacks, const char* feedback)
+void addOrIncrementFeedback(std::vector<Feedback> &feedbacks,
+                            const char *feedback)
 {
-    for (auto& feedbackEntry : feedbacks)
+    for (auto &feedbackEntry : feedbacks)
     {
         if (feedbackEntry.matches(feedback))
-	{
+        {
             feedbackEntry.incrementCount();
             return; // Exit the function after incrementing
         }
@@ -82,32 +81,40 @@ void addOrIncrementFeedback(std::vector<Feedback>& feedbacks, const char* feedba
     feedbacks.emplace_back(feedback);
 }
 
-std::pair<std::string, std::vector<Feedback>> calculateFeedbackForWord(const std::string& word, const std::vector<std::string>& wordList) {
+std::pair<std::string, std::vector<Feedback>>
+calculateFeedbackForWord(const std::string &word,
+                         const std::vector<std::string> &wordList)
+{
     std::vector<Feedback> feedbacks;
-    for (const std::string& guess : wordList) {
-        char* feedback = getFeedback(word, guess);
+    for (const std::string &guess : wordList)
+    {
+        char *feedback = getFeedback(word, guess);
         addOrIncrementFeedback(feedbacks, feedback);
     }
     return std::make_pair(word, feedbacks);
 }
 
-std::vector<std::pair<std::string, std::vector<Feedback>>> calculateFeedback(const std::vector<std::string>& wordList) {
-    std::vector<std::future<std::pair<std::string, std::vector<Feedback>>>> futures;
+std::vector<std::pair<std::string, std::vector<Feedback>>>
+calculateFeedback(const std::vector<std::string> &wordList)
+{
+    std::vector<std::future<std::pair<std::string, std::vector<Feedback>>>>
+        futures;
     size_t totalWords = wordList.size();
 
-    for (const std::string& word : wordList) {
-        futures.push_back(std::async(std::launch::async, calculateFeedbackForWord, word, wordList));
+    for (const std::string &word : wordList)
+    {
+        futures.push_back(std::async(std::launch::async,
+                                     calculateFeedbackForWord, word, wordList));
     }
 
     std::vector<std::pair<std::string, std::vector<Feedback>>> feedbackList;
-    for (size_t i = 0; i < futures.size(); ++i) {
+    for (size_t i = 0; i < futures.size(); ++i)
+    {
         feedbackList.push_back(futures[i].get());
-
     }
 
     return feedbackList;
 }
-
 
 bool checkWordInWordlist(const std::string &word,
                          const std::vector<std::string> &wordList)
@@ -275,8 +282,7 @@ void filterWords(std::vector<std::string> &wordList, const GuessResult &guess)
     std::cout << "Filtered word list size: " << candidates.size() << std::endl;
     if (!candidates.empty())
     {
-        std::cout << "First candidate: " << candidates[0]
-                  << std::endl;
+        std::cout << "First candidate: " << candidates[0] << std::endl;
     }
     else
     {
@@ -284,47 +290,76 @@ void filterWords(std::vector<std::string> &wordList, const GuessResult &guess)
     }
     wordList = candidates;
 }
+double calculateEntropy(const std::vector<Feedback> &feedbacks)
+{
+    double entropy = 0.0;
+    int totalCount = 0;
+
+    // Calculate total count of feedbacks
+    for (const auto &feedback : feedbacks)
+    {
+        totalCount += feedback.count;
+    }
+
+    // Calculate entropy
+    for (const auto &feedback : feedbacks)
+    {
+        if (feedback.count > 0)
+        {
+            double probability =
+                static_cast<double>(feedback.count) / totalCount;
+            entropy -= probability * std::log2(probability);
+        }
+    }
+
+    return entropy;
+}
 
 int main(int argc, char *argv[])
 {
-    // DO UNIT TESTING
-    // std::vector<GuessResult> guesses;
-    //
-    // std::vector<std::string> wordList = wordle::wordList;
-    // std::cout << "First initial guess: " << wordList[0] << std::endl;
-    // size_t wordCount = wordList.size();
-    // while (wordCount != 1)
-    // {
-    //     GuessResult guess = readInWord(guesses);
-    //     filterWords(wordList, guess);
-    // }
-    // std::cout << "The answer is " << wordList[0] << std::endl;
+    std::vector<GuessResult> guesses;
 
-    std::vector<std::string> wordList = {
-	"raise",
-	"slate",
-	"arise",
-	"stare",
-	"trace",
-	"arose",
-	"crane",
-	"alert",
-	"least",
-	"later",
-	"alter"
-    };
+    std::vector<std::string> wordList = wordle::wordList;
+    std::cout << "First initial guess: " << wordList[0] << std::endl;
+    size_t wordCount = wordList.size();
+    while (wordCount != 1)
+    {
+        GuessResult guess = readInWord(guesses);
+        filterWords(wordList, guess);
+        std::vector<std::pair<std::string, std::vector<Feedback>>> feedbacks =
+            calculateFeedback(wordList);
+        // Vector to store words and their corresponding entropy values
+        std::vector<std::pair<std::string, double>> entropyValues;
 
-    std::vector<std::pair<std::string, std::vector<Feedback>>> feedbacks = calculateFeedback(wordle::wordList);
-    for (const auto& pair : feedbacks) {
-        const std::string& word = pair.first;
-        const std::vector<Feedback>& feedbacksForWord = pair.second;
+        for (const auto &pair : feedbacks)
+        {
+            const std::string &word = pair.first;
+            const std::vector<Feedback> &feedbacksForWord = pair.second;
 
-        std::cout << "Word: " << word << std::endl;
-        for (const auto& feedback : feedbacksForWord) {
-            auto result = feedback.getFeedback();
-            std::cout << "  Feedback: " << result.first << ", Count: " << result.second << std::endl;
+            // Calculate the entropy for this word
+            double entropy = calculateEntropy(feedbacksForWord);
+
+            // Store the word and its entropy value
+            entropyValues.emplace_back(word, entropy);
+        }
+
+        // Sort the entropy values in descending order
+        std::sort(entropyValues.begin(), entropyValues.end(),
+                  [](const std::pair<std::string, double> &a,
+                     const std::pair<std::string, double> &b)
+                  {
+                      return a.second > b.second; // Sort by entropy value
+                  });
+
+        // Output the top two words with the highest entropy
+        std::cout << "Top two words with highest entropy:" << std::endl;
+        for (size_t i = 0; i < std::min(entropyValues.size(), size_t(2)); ++i)
+        {
+            std::cout << "Word: " << entropyValues[i].first
+                      << ", Entropy: " << entropyValues[i].second << std::endl;
         }
     }
+    std::cout << "The answer is " << wordList[0] << std::endl;
 
     return 0;
 }
