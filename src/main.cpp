@@ -1,11 +1,12 @@
 #include "wordlist.h"
+#include "feedback.h"
+#include <future>
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <iostream>
 #include <limits>
-#include <random>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,73 @@ struct GuessResult
     // Method to return the guess string
     std::string getGuess() const { return guess; }
 };
+
+struct Feedback
+{
+    char data[6];
+    int count;
+
+    Feedback(const char* initialData)
+    {
+	std::strncpy(data, initialData, sizeof(data) - 1);
+	data[sizeof(data) - 1] = '\0'; // ensure null termination
+	count = 0;
+    }
+
+    void incrementCount()
+    {
+	count++;
+    }
+    bool matches(const char* str) const
+    {
+        return strncmp(data, str, sizeof(data)) == 0;
+    }
+    std::pair<const char*, int> getFeedback() const
+    {
+        return std::make_pair(data, count);
+    }
+};
+
+void addOrIncrementFeedback(std::vector<Feedback>& feedbacks, const char* feedback)
+{
+    for (auto& feedbackEntry : feedbacks)
+    {
+        if (feedbackEntry.matches(feedback))
+	{
+            feedbackEntry.incrementCount();
+            return; // Exit the function after incrementing
+        }
+    }
+    // If not found, add a new entry
+    feedbacks.emplace_back(feedback);
+}
+
+std::pair<std::string, std::vector<Feedback>> calculateFeedbackForWord(const std::string& word, const std::vector<std::string>& wordList) {
+    std::vector<Feedback> feedbacks;
+    for (const std::string& guess : wordList) {
+        char* feedback = getFeedback(word, guess);
+        addOrIncrementFeedback(feedbacks, feedback);
+    }
+    return std::make_pair(word, feedbacks);
+}
+
+std::vector<std::pair<std::string, std::vector<Feedback>>> calculateFeedback(const std::vector<std::string>& wordList) {
+    std::vector<std::future<std::pair<std::string, std::vector<Feedback>>>> futures;
+    size_t totalWords = wordList.size();
+
+    for (const std::string& word : wordList) {
+        futures.push_back(std::async(std::launch::async, calculateFeedbackForWord, word, wordList));
+    }
+
+    std::vector<std::pair<std::string, std::vector<Feedback>>> feedbackList;
+    for (size_t i = 0; i < futures.size(); ++i) {
+        feedbackList.push_back(futures[i].get());
+
+    }
+
+    return feedbackList;
+}
+
 
 bool checkWordInWordlist(const std::string &word,
                          const std::vector<std::string> &wordList)
@@ -219,17 +287,44 @@ void filterWords(std::vector<std::string> &wordList, const GuessResult &guess)
 
 int main(int argc, char *argv[])
 {
-    std::vector<GuessResult> guesses;
+    // DO UNIT TESTING
+    // std::vector<GuessResult> guesses;
+    //
+    // std::vector<std::string> wordList = wordle::wordList;
+    // std::cout << "First initial guess: " << wordList[0] << std::endl;
+    // size_t wordCount = wordList.size();
+    // while (wordCount != 1)
+    // {
+    //     GuessResult guess = readInWord(guesses);
+    //     filterWords(wordList, guess);
+    // }
+    // std::cout << "The answer is " << wordList[0] << std::endl;
 
-    std::vector<std::string> wordList = wordle::wordList;
-    std::cout << "First initial guess: " << wordList[0] << std::endl;
-    size_t wordCount = wordList.size();
-    while (wordCount != 1)
-    {
-        GuessResult guess = readInWord(guesses);
-        filterWords(wordList, guess);
+    std::vector<std::string> wordList = {
+	"raise",
+	"slate",
+	"arise",
+	"stare",
+	"trace",
+	"arose",
+	"crane",
+	"alert",
+	"least",
+	"later",
+	"alter"
+    };
+
+    std::vector<std::pair<std::string, std::vector<Feedback>>> feedbacks = calculateFeedback(wordle::wordList);
+    for (const auto& pair : feedbacks) {
+        const std::string& word = pair.first;
+        const std::vector<Feedback>& feedbacksForWord = pair.second;
+
+        std::cout << "Word: " << word << std::endl;
+        for (const auto& feedback : feedbacksForWord) {
+            auto result = feedback.getFeedback();
+            std::cout << "  Feedback: " << result.first << ", Count: " << result.second << std::endl;
+        }
     }
-    std::cout << "The answer is " << wordList[0] << std::endl;
 
     return 0;
 }
