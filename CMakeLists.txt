@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(wordle src/main.cpp)
+add_executable(wordle src/Main.cpp)
 
 target_include_directories(wordle PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
