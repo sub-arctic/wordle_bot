@@ -1,6 +1,8 @@
 #include "Entropy.h"
+#include "Wordle.h"
 #include <cmath>
 #include <future>
+#include <iostream>
 #include <unordered_map>
 
 namespace Entropy
@@ -110,6 +112,25 @@ char *getFeedback(const std::string &guess, const std::string &target)
     }
 
     return feedback;
+}
+
+void actualEntropy(const Wordle::GuessResult &guess,
+                   const std::vector<std::string> &wordList)
+{
+    const std::string guessedWord = guess.getGuess();
+    std::vector<Feedback> feedbacks;
+
+    for (const std::string &targetWord : wordList)
+    {
+        char *feedback = getFeedback(guessedWord, targetWord);
+
+        addOrIncrementFeedback(feedbacks, feedback);
+    }
+
+    double entropy = calculateEntropy(feedbacks);
+
+    std::cout << "Entropy for the guessed word '" << guessedWord
+              << "': " << entropy << std::endl;
 }
 
 } // namespace Entropy

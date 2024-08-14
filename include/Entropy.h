@@ -1,6 +1,7 @@
 #ifndef ENTROPY_H
 #define ENTROPY_H
 
+#include "Wordle.h"
 #include <cstring>
 #include <string>
 #include <utility>
@@ -42,6 +43,9 @@ calculateFeedback(const std::vector<std::string> &wordList);
 double calculateEntropy(const std::vector<Feedback> &feedbacks);
 
 char *getFeedback(const std::string &guess, const std::string &target);
+
+void actualEntropy(const Wordle::GuessResult &guess,
+                   const std::vector<std::string> &wordList);
 
 } // namespace Entropy
 

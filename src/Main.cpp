@@ -4,6 +4,36 @@
 #include <algorithm>
 #include <iostream>
 
+void printEntropy(const std::vector<std::string> &wordList)
+{
+    std::vector<std::pair<std::string, std::vector<Entropy::Feedback>>>
+        feedbacks = Entropy::calculateFeedback(wordList);
+
+    std::vector<std::pair<std::string, double>> entropyValues;
+
+    for (const auto &pair : feedbacks)
+    {
+        const std::string &word = pair.first;
+        const std::vector<Entropy::Feedback> &feedbacksForWord = pair.second;
+
+        double entropy = calculateEntropy(feedbacksForWord);
+
+        entropyValues.emplace_back(word, entropy);
+    }
+
+    std::sort(entropyValues.begin(), entropyValues.end(),
+              [](const std::pair<std::string, double> &a,
+                 const std::pair<std::string, double> &b)
+              { return a.second > b.second; });
+
+    std::cout << "Top entropy:" << std::endl;
+    for (size_t i = 0; i < std::min(entropyValues.size(), size_t(2)); ++i)
+    {
+        std::cout << "Word: " << entropyValues[i].first
+                  << ", Entropy: " << entropyValues[i].second << std::endl;
+    }
+}
+
 int main(int argc, char *argv[])
 {
     std::vector<Wordle::GuessResult> guesses;
@@ -15,32 +45,8 @@ int main(int argc, char *argv[])
     {
         Wordle::GuessResult guess = readInWord(guesses);
         filterWords(wordList, guess);
-        std::vector<std::pair<std::string, std::vector<Entropy::Feedback>>>
-            feedbacks = Entropy::calculateFeedback(wordList);
-        std::vector<std::pair<std::string, double>> entropyValues;
-
-        for (const auto &pair : feedbacks)
-        {
-            const std::string &word = pair.first;
-            const std::vector<Entropy::Feedback> &feedbacksForWord =
-                pair.second;
-
-            double entropy = calculateEntropy(feedbacksForWord);
-
-            entropyValues.emplace_back(word, entropy);
-        }
-
-        std::sort(entropyValues.begin(), entropyValues.end(),
-                  [](const std::pair<std::string, double> &a,
-                     const std::pair<std::string, double> &b)
-                  { return a.second > b.second; });
-
-        std::cout << "Top entropy:" << std::endl;
-        for (size_t i = 0; i < std::min(entropyValues.size(), size_t(2)); ++i)
-        {
-            std::cout << "Word: " << entropyValues[i].first
-                      << ", Entropy: " << entropyValues[i].second << std::endl;
-        }
+        printEntropy(wordList);
+        Entropy::actualEntropy(guess, wordList);
     }
     std::cout << "The answer is " << wordList[0] << std::endl;
 
